@@ -105,10 +105,11 @@ uint8_t data_SIM3[40] = "AT+CMQTTACCQ=0,\"clientID\"\r\n";
 uint8_t data_SIM4[70] = "AT+CMQTTCONNECT=0,\"tcp://test.mosquitto.org:1883\",60,0\r\n";
 uint8_t data_SIM5[40] = "AT+CMQTTTOPIC=0,5\r\n";
 // uint8_t data_SIM5[40] = "AT+CMQTTSUB=0,5,1\r\n";
-uint8_t data_SIM6[40] = "vonam";
+uint8_t data_SIM6[40] = "vonam\r\n";
 uint8_t data_SIM7[40] = "AT+CMQTTPAYLOAD=0,48\r\n";
 uint8_t data_SIM8[40] = "nhietdo 24 do am 67\r\n";
 uint8_t data_SIM9[40] = "AT+CMQTTPUB=0,1,60,0,0\r\n";
+// uint8_t data_SIM10[40] = "AT+CMQTTSUB=0,7,1\r\n";
 uint8_t data_SIM10[40] = "AT+CMQTTTOPIC=0,7\r\n";
 uint8_t data_SIM11[40] = "nhietdo\r\n";
 uint8_t cmd_SIM_UNSUBTOPIC[40] = "AT+CMQTTUNSUBTOPIC=0,5\r\n";
@@ -273,6 +274,9 @@ int count_err = 0;
 
 int flag_k_cho_phep_nhan = 0;
 
+int flag_pass_input = 0;
+int leng, leng1;
+
 volatile int data_avail_mqtt = 0;
 void reconnect_mqtt(void);
 void update_lcd(void);
@@ -280,6 +284,90 @@ void xu_ly_tick_dht11(uint8_t *tick, uint8_t *data_dht11);
 void doc_dht11(void);
 void update(void);
 void init_sim(void);
+int check_buffer_RX(void);
+
+inline void send_data_to_server(void);
+
+void send_data_to_server1(void)
+{
+	FLAG_CHECK_SEND_DATA = 1;
+	flag_check_RX_PAYLOAD = 0;
+	flag_check_OK = 1;
+	int err;
+	flag_pass = 0;
+	count_again_trans = 0;
+	HAL_UART_Transmit(&huart1, data_SIM5, strlen((const char *)data_SIM5), 3000);
+	HAL_Delay(2000);
+	update();
+	update_lcd();
+	////////////////////////////////debug///////////////////
+	//	HAL_UART_Transmit(&huart1, cmd_check_mqtt, strlen((const char *)cmd_check_mqtt), 1000);
+
+	////////////////////////////////debug///////////////////
+
+	HAL_UART_Transmit(&huart1, data_SIM6, strlen((const char *)data_SIM6), 3000);
+	while (flag_pass == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (count_again_trans >= 10) {
+			break;
+		}
+	}
+	flag_pass = 0;
+	count_again_trans = 0;
+	//	  while(flag_pass==0);
+	////////////////////// 5 6//////////////////
+
+	HAL_UART_Transmit(&huart1, data_SIM7, strlen((const char *)data_SIM7), 3000);
+	HAL_Delay(1000);
+	update();
+	update_lcd();
+
+	/////////////////////////////////////////////////////////////
+
+	a = led % 2;
+	b = quat % 2;
+	c = bom % 2;
+	d = mode % 2;
+	int check_led = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
+	int check_quat = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_14);
+	int check_bom = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_15);
+	sprintf((char *)message_gui_server, "%02d.%02d %02d.%02d %04d %04d %04d %04d %02d %d %d %d %d %d %d %d", data_dht11[2], data_dht11[3], data_dht11[0], data_dht11[1], adc_quang_tro,
+	    adc_do_am_dat, nguong_adc_quang_tro, nguong_adc_do_am_dat, nguong_nhiet_do, a, b, c, d, check_led, check_quat, check_bom);
+	//////////////////////////////////////////////////////////////////////
+	leng = strlen((const char *)message_gui_server);
+	HAL_UART_Transmit(&huart1, message_gui_server, leng, 3000);
+	while (flag_pass == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (count_again_trans >= 10) {
+			break;
+		}
+	}
+	flag_pass = 0;
+	count_again_trans = 0;
+UART9:
+	flag_pass = 0;
+	count_again_trans = 0;
+	//	if (count_err >= 10)
+	//		reconnect_mqtt();
+	HAL_UART_Transmit(&huart1, data_SIM9, strlen((const char *)data_SIM9), 3000);
+	flag_k_cho_phep_nhan = 1;
+	while (flag_pass == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+
+		if (count_again_trans >= 10) {
+			break;
+		}
+	}
+
+	flag_k_cho_phep_nhan = 0;
+	count_err = 0;
+	flag_check_RX_PAYLOAD = 1;
+	flag_check_OK = 0;
+	FLAG_CHECK_SEND_DATA = 0;
+}
 
 int check_buffer_RX(void)
 {
@@ -340,34 +428,37 @@ CHECK_UNSUB_RX:
 		count_again_trans++;
 		if (count_again_trans >= 10) {
 			//			  goto UNSUB_AGAIN;
-			goto CHECK_UNSUB_RX2;
+			//			goto CHECK_UNSUB_RX2;
+			break;
 		}
 	}
-CHECK_UNSUB_RX2:
-	flag_pass = 0;
-	count_again_trans = 0;
-	err = check_buffer_RX();
-	if (err) {
-		HAL_Delay(300);
-		goto CHECK_UNSUB_RX2;
-	}
-	HAL_UART_Transmit(&huart1, cmd_unsub_topic, strlen((const char *)cmd_unsub_topic), 1000);
-	while (flag_pass == 0) {
-		HAL_Delay(500);
-		count_again_trans++;
-		if (count_again_trans >= 10) {
-			goto UNSUB_AGAIN;
-		}
-	}
+	// CHECK_UNSUB_RX2:
+	//	flag_pass = 0;
+	//	count_again_trans = 0;
+	//	err = check_buffer_RX();
+	//	if (err) {
+	//		HAL_Delay(300);
+	//		goto CHECK_UNSUB_RX2;
+	//	}
+	//	HAL_UART_Transmit(&huart1, cmd_unsub_topic, strlen((const char *)cmd_unsub_topic), 1000);
+	//	while (flag_pass == 0) {
+	//		HAL_Delay(500);
+	//		count_again_trans++;
+	//		if (count_again_trans >= 10) {
+	//			goto UNSUB_AGAIN;
+	//		}
+	//	}
 }
-int leng;
 void send_data_to_server(void)
 {
 	FLAG_CHECK_SEND_DATA = 1;
 	flag_check_RX_PAYLOAD = 0;
 	flag_check_OK = 1;
 	int err;
+	count_err = 0;
+	flag_pass_input = 0;
 UART6:
+
 	flag_pass = 0;
 	count_again_trans = 0;
 	flag_nhap_topic = 0;
@@ -376,21 +467,39 @@ UART6:
 		HAL_Delay(300);
 		goto UART6;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM5, strlen((const char *)data_SIM5), 1000);
-	HAL_Delay(1000);
+	HAL_UART_Transmit(&huart1, data_SIM5, strlen((const char *)data_SIM5), 3000);
+	HAL_Delay(2000);
 	update();
-	//	update_lcd();
+	update_lcd();
 	////////////////////////////////debug///////////////////
 	//	HAL_UART_Transmit(&huart1, cmd_check_mqtt, strlen((const char *)cmd_check_mqtt), 1000);
 
 	////////////////////////////////debug///////////////////
+	while (flag_pass_input == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (count_err >= 10) {
+			count_err = 0;
+			init_sim();
+			goto UART6;
+		}
+		if (count_again_trans >= 10) {
+			count_err++;
+			//			unsub_topic();
+			//			init_sim();
+			goto UART6;
+		}
+	}
+	flag_pass_input = 0;
+	count_again_trans = 0;
+
 BUFFER6:
 	err = check_buffer_RX();
 	if (err) {
-		HAL_Delay(1000);
+		HAL_Delay(300);
 		goto BUFFER6;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM6, strlen((const char *)data_SIM6), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM6, strlen((const char *)data_SIM6), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -400,27 +509,43 @@ BUFFER6:
 			goto UART6;
 		}
 		if (count_again_trans >= 10) {
-			//			  unsub_topic();
 			count_err++;
 			goto UART6;
 		}
 	}
 
-//	  while(flag_pass==0);
-////////////////////// 5 6//////////////////
+	//	  while(flag_pass==0);
+	////////////////////// 5 6//////////////////
+	count_err = 0;
 UART7:
 	FLAG_CHECK_SEND_DATA1 = 1;
 	flag_pass = 0;
 	count_again_trans = 0;
 	err = check_buffer_RX();
 	if (err) {
-		HAL_Delay(100);
+		HAL_Delay(300);
 		goto UART7;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM7, strlen((const char *)data_SIM7), 1000);
-	HAL_Delay(2000);
+	leng1 = strlen((const char *)data_SIM7);
+	HAL_UART_Transmit(&huart1, data_SIM7, strlen((const char *)data_SIM7), 3000);
+	HAL_Delay(1000);
 	update();
 	update_lcd();
+	while (flag_pass_input == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (count_err >= 10) {
+			count_err = 0;
+			init_sim();
+			goto UART6;
+		}
+		if (count_again_trans >= 10) {
+			count_err++;
+			goto UART7;
+		}
+	}
+	flag_pass_input = 0;
+	count_again_trans = 0;
 	/////////////////////////////////////////////////////////////
 DELAY_SEND_DATA:
 	data_avail_mqtt = 0;
@@ -442,22 +567,25 @@ DELAY_SEND_DATA:
 	    adc_do_am_dat, nguong_adc_quang_tro, nguong_adc_do_am_dat, nguong_nhiet_do, a, b, c, d, check_led, check_quat, check_bom);
 	//////////////////////////////////////////////////////////////////////
 	leng = strlen((const char *)message_gui_server);
-	HAL_UART_Transmit(&huart1, message_gui_server, strlen((const char *)message_gui_server), 3000);
+	HAL_UART_Transmit(&huart1, message_gui_server, leng, 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
-		if (count_err >= 10)
-			reconnect_mqtt();
-		if (count_again_trans >= 10) {
-			//			  unsub_topic();
-			count_err++;
+		if (count_err >= 10) {
+			init_sim();
 			goto UART6;
+		}
+		if (count_again_trans >= 10) {
+			//			unsub_topic();
+			count_err++;
+			goto UART7;
 		}
 	}
 	FLAG_CHECK_SEND_DATA1 = 0;
 
-//	  //////////////////// 7 8//////////////////////////////
-//
+	//	  //////////////////// 7 8//////////////////////////////
+	//
+	count_err = 0;
 UART9:
 	flag_pass = 0;
 	count_again_trans = 0;
@@ -468,13 +596,13 @@ UART9:
 	}
 	if (data_avail_mqtt) {
 		data_avail_mqtt = 0;
-		count_err++;
+		//		count_err++;
 		//		  unsub_topic();
 		goto UART6;
 	}
-	if (count_err >= 10)
-		reconnect_mqtt();
-	HAL_UART_Transmit(&huart1, data_SIM9, strlen((const char *)data_SIM9), 1000);
+	//	if (count_err >= 10)
+	//		reconnect_mqtt();
+	HAL_UART_Transmit(&huart1, data_SIM9, strlen((const char *)data_SIM9), 3000);
 	flag_k_cho_phep_nhan = 1;
 	while (flag_pass == 0) {
 		HAL_Delay(500);
@@ -484,8 +612,14 @@ UART9:
 		//			//			  unsub_topic();
 		//			goto UART6;
 		//		}
-		if (count_again_trans >= 10) {
+		if (count_err >= 10) {
+			count_err = 0;
+			init_sim();
 			goto UART6;
+		}
+		if (count_again_trans >= 15) {
+			count_err++;
+			goto UART9;
 		}
 	}
 	flag_k_cho_phep_nhan = 0;
@@ -528,7 +662,7 @@ UART5_MQTT:
 		HAL_Delay(1000);
 		goto UART5_MQTT;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM10, (uint16_t)strlen((const char *)data_SIM10), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM10, (uint16_t)strlen((const char *)data_SIM10), 3000);
 	HAL_Delay(1000);
 BUFFER5_MQTT:
 	err = check_buffer_RX();
@@ -536,7 +670,7 @@ BUFFER5_MQTT:
 		HAL_Delay(1000);
 		goto BUFFER5_MQTT;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM11, (uint16_t)strlen((const char *)data_SIM11), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM11, (uint16_t)strlen((const char *)data_SIM11), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -555,9 +689,27 @@ void init_sim(void)
 	flag_check_OK = 1;
 	int err = 0;
 
-	//	  flag_pass = 0;
-	HAL_UART_Transmit(&huart1, data_SIM_RESET, strlen((const char *)data_SIM_RESET), 1000);
-	HAL_Delay(12000);
+//	  flag_pass = 0;
+UART_SIM_RESET:
+	flag_pass = 0;
+	count_again_trans = 0;
+	err = check_buffer_RX();
+	if (err) {
+		HAL_Delay(1000);
+		goto UART_SIM_RESET;
+	}
+	HAL_UART_Transmit(&huart1, data_SIM_RESET, strlen((const char *)data_SIM_RESET), 3000);
+	while (flag_pass == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (flag_pass == 1) {
+			break;
+		}
+		if (count_again_trans >= 10) {
+			goto UART_SIM_RESET;
+		}
+	}
+	HAL_Delay(13000);
 UART_SIM_TEST:
 	flag_pass = 0;
 	count_again_trans = 0;
@@ -566,7 +718,7 @@ UART_SIM_TEST:
 		HAL_Delay(1000);
 		goto UART_SIM_TEST;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM_TEST, strlen((const char *)data_SIM_TEST), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM_TEST, strlen((const char *)data_SIM_TEST), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -578,25 +730,25 @@ UART_SIM_TEST:
 		}
 	}
 //	  HAL_Delay(10000);
-UART0:
-	flag_pass = 0;
-	count_again_trans = 0;
-	err = check_buffer_RX();
-	if (err) {
-		HAL_Delay(1000);
-		goto UART0;
-	}
-	HAL_UART_Transmit(&huart1, data_SIM0, strlen((const char *)data_SIM0), 1000);
-	while (flag_pass == 0) {
-		HAL_Delay(500);
-		count_again_trans++;
-		if (flag_pass == 1) {
-			break;
-		}
-		if (count_again_trans >= 10) {
-			goto UART0;
-		}
-	}
+// UART0:
+//	flag_pass = 0;
+//	count_again_trans = 0;
+//	err = check_buffer_RX();
+//	if (err) {
+//		HAL_Delay(1000);
+//		goto UART0;
+//	}
+//	HAL_UART_Transmit(&huart1, data_SIM0, strlen((const char *)data_SIM0), 1000);
+//	while (flag_pass == 0) {
+//		HAL_Delay(500);
+//		count_again_trans++;
+//		if (flag_pass == 1) {
+//			break;
+//		}
+//		if (count_again_trans >= 10) {
+//			goto UART0;
+//		}
+//	}
 ///////////////////////////////////////////////////////////////////
 UART1:
 	flag_pass = 0;
@@ -606,7 +758,7 @@ UART1:
 		HAL_Delay(1000);
 		goto UART1;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM1, strlen((const char *)data_SIM1), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM1, strlen((const char *)data_SIM1), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -626,7 +778,7 @@ UART2:
 		HAL_Delay(1000);
 		goto UART2;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM2, strlen((const char *)data_SIM2), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM2, strlen((const char *)data_SIM2), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -646,7 +798,7 @@ UART3:
 		HAL_Delay(1000);
 		goto UART3;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM3, strlen((const char *)data_SIM3), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM3, strlen((const char *)data_SIM3), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -677,7 +829,7 @@ UART4:
 			goto UART4;
 		}
 	}
-	flag_pass = 0;
+	flag_pass_input = 0;
 /////////////////////	  /////////////////////////////////////////////////////////
 UART5:
 	flag_pass = 0;
@@ -687,15 +839,30 @@ UART5:
 		HAL_Delay(1000);
 		goto UART5;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM10, (uint16_t)strlen((const char *)data_SIM10), 1000);
-	HAL_Delay(1000);
+	HAL_UART_Transmit(&huart1, data_SIM10, (uint16_t)strlen((const char *)data_SIM10), 3000);
+	HAL_Delay(2000);
+	while (flag_pass_input == 0) {
+		HAL_Delay(500);
+		count_again_trans++;
+		if (count_err >= 10) {
+			count_err = 0;
+			init_sim();
+			goto UART5;
+		}
+		if (count_again_trans >= 10) {
+			count_err++;
+			//			unsub_topic();
+			goto UART5;
+		}
+	}
+	flag_pass_input = 0;
 BUFFER5:
 	err = check_buffer_RX();
 	if (err) {
 		HAL_Delay(1000);
 		goto BUFFER5;
 	}
-	HAL_UART_Transmit(&huart1, data_SIM11, (uint16_t)strlen((const char *)data_SIM11), 1000);
+	HAL_UART_Transmit(&huart1, data_SIM11, (uint16_t)strlen((const char *)data_SIM11), 3000);
 	while (flag_pass == 0) {
 		HAL_Delay(500);
 		count_again_trans++;
@@ -706,6 +873,8 @@ BUFFER5:
 			goto UART5;
 		}
 	}
+
+	//	send_data_to_server();
 
 	/////////// kich hoat nhan res tu command sim topic
 	/*flag_pass = 0;
@@ -733,6 +902,7 @@ ABC:		err = check_buffer_RX();
 	        }*/
 	////////////
 
+	flag_pass_input = 0;
 	flag_check_RX_PAYLOAD = 1;
 	flag_check_OK = 0;
 	flag_pass_all_RX_PAYLOAD = 0;
@@ -1100,7 +1270,7 @@ int main(void)
 			update();
 			update_lcd();
 			if (FLAG_CHECK_SEND_DATA == 0)
-				send_data_to_server();
+				send_data_to_server1();
 			update();
 			update_lcd();
 			//			HAL_NVIC_EnableIRQ(EXTI2_IRQn);
@@ -1418,7 +1588,7 @@ static void MX_TIM4_Init(void)
 	htim4.Instance = TIM4;
 	htim4.Init.Prescaler = 63999;
 	htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim4.Init.Period = 2000;
+	htim4.Init.Period = 1700;
 	htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
 	htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
 	if (HAL_TIM_Base_Init(&htim4) != HAL_OK) {
@@ -1934,6 +2104,47 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 					break;
 			}
 		}
+		///////////////////////////////
+		if (data_RX_0[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_1[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_2[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_3[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_4[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_5[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_6[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_7[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_8[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_9[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_10[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_11[0] == '>') {
+			flag_pass_input = 1;
+		}
+		if (data_RX_12[0] == '>') {
+			flag_pass_input = 1;
+		}
+		//////////////////////////////
 		if (!strcmp((const char *)data_RX_0, (const char *)cmd_OK)) {
 			flag_pass = 1;
 			flag_nhap_topic = 1;
@@ -2806,5 +3017,3 @@ void assert_failed(uint8_t *file, uint32_t line)
 	/* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-gửi lệnh topic thì nó hiện Ok sau khi nhập topic nhưng khi gửi PAYLOAD thì ko có bất kì phản hồi nào
